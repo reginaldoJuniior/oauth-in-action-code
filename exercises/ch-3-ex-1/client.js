@@ -21,11 +21,6 @@ var authServer = {
 };
 
 // client information
-
-
-/*
- * Add the client information in here
- */
 var client = {
 	"client_id": "oauth-client-1",
 	"client_secret": "oauth-client-secret-1",
@@ -44,10 +39,6 @@ app.get('/', function (req, res) {
 });
 
 app.get('/authorize', function(req, res){
-
-	/*
-	 * Send the user to the authorization server
-	 */
 	access_token = null;
 
 	state = randomstring.generate();
@@ -65,10 +56,6 @@ app.get('/authorize', function(req, res){
 });
 
 app.get('/callback', function(req, res){
-
-	/*
-	 * Parse the response from the authorization server and get a token
-	 */
 	 if (req.query.error) {
 		 res.render('error', {error: req.query.error});
 		 return;
@@ -112,10 +99,29 @@ app.get('/callback', function(req, res){
 });
 
 app.get('/fetch_resource', function(req, res) {
+	if (!access_token) {
+		res.render('error', {error: 'Missing access token'});
+		return;
+	}
 
-	/*
-	 * Use the access token to call the resource server
-	 */
+	var headers = {
+		'Authorization': 'Bearer ' + access_token
+	}
+
+	var resource = request('POST', protectedResource, {
+		headers: headers
+	})
+
+	if (resource.statusCode >= 200 && resource.statusCode < 300) {
+		var body = JSON.parse(resource.getBody());
+
+		res.render('data', {resource: body});
+	} else if (tokRes.statusCode === 400) {
+		access_token = null;
+		res.redirect('/authorize')
+	} else {
+		res.render('error', {error: 'Server returned response code: ' + resource.statusCode});
+	}
 	
 });
 

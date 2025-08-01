@@ -70,14 +70,31 @@ var bobFavorites = {
 };
 
 app.get('/favorites', getAccessToken, requireAccessToken, function(req, res) {
-	
-	/*
-	 * Get different user information based on the information of who approved the token
-	 */
-	
-	var unknown = {user: 'Unknown', favorites: {movies: [], foods: [], music: []}};
-	res.json(unknown);
+	let response = {user: 'Unknown', favorites: {movies: [], foods: [], music: []}};
+	let favorites = {movies: [], foods: [], music: []}
 
+	if (req.access_token.user === 'alice') {
+		response.user = 'Alice';
+		favorites = aliceFavorites
+	} else if (req.access_token.user === 'bob') {
+		response.user = 'Bob';
+		favorites = bobFavorites;
+	} else {
+		let unknown = {user: 'Unknown', favorites: {movies: [], foods: [], music: []}};
+		res.json(unknown);
+	}
+
+	if (__.contains(req.access_token.scope, 'movies')) {
+		response.favorites.movies = favorites.movies;
+	}
+	if (__.contains(req.access_token.scope, 'foods')) {
+		response.favorites.foods = favorites.foods;
+	}
+	if (__.contains(req.access_token.scope, 'music')) {
+		response.favorites.music = favorites.music;
+	}
+
+	res.json(response)
 });
 
 var server = app.listen(9002, 'localhost', function () {

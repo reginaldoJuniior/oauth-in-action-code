@@ -31,6 +31,12 @@ var clients = [
 		"client_id": "oauth-client-1",
 		"client_secret": "oauth-client-secret-1",
 		"redirect_uris": ["http://localhost:9000/callback"]
+	},
+	{
+		"client_id": "oauth-client-2",
+		"client_secret": "oauth-client-secret-2",
+		// "redirect_uris": ["https://oauth.pstmn.io/v1/callback"]
+		"redirect_uris": ["http://localhost:9000/callback"]
 	}
 ];
 
@@ -39,7 +45,7 @@ var codes = {};
 var requests = {};
 
 var getClient = function(clientId) {
-	return __.find(clients, function(client) { return client.client_id == clientId; });
+	return __.find(clients, function(client) { return client.client_id === clientId; });
 };
 
 app.get('/', function(req, res) {
@@ -53,11 +59,9 @@ app.get("/authorize", function(req, res){
 	if (!client) {
 		console.log('Unknown client %s', req.query.client_id);
 		res.render('error', {error: 'Unknown client'});
-		return;
 	} else if (!__.contains(client.redirect_uris, req.query.redirect_uri)) {
 		console.log('Mismatched redirect URI, expected %s got %s', client.redirect_uris, req.query.redirect_uri);
 		res.render('error', {error: 'Invalid redirect URI'});
-		return;
 	} else {
 		
 		var reqid = randomstring.generate(8);
@@ -65,7 +69,6 @@ app.get("/authorize", function(req, res){
 		requests[reqid] = req.query;
 		
 		res.render('approve', {client: client, reqid: reqid });
-		return;
 	}
 
 });
@@ -95,14 +98,12 @@ app.post('/approve', function(req, res) {
 				state: query.state
 			});
 			res.redirect(urlParsed);
-			return;
 		} else {
 			// we got a response type we don't understand
 			var urlParsed = buildUrl(query.redirect_uri, {
 				error: 'unsupported_response_type'
 			});
 			res.redirect(urlParsed);
-			return;
 		}
 	} else {
 		// user denied access
@@ -110,7 +111,6 @@ app.post('/approve', function(req, res) {
 			error: 'access_denied'
 		});
 		res.redirect(urlParsed);
-		return;
 	}
 	
 });
@@ -145,52 +145,72 @@ app.post("/token", function(req, res){
 		return;
 	}
 	
-	if (client.client_secret != clientSecret) {
+	if (client.client_secret !== clientSecret) {
 		console.log('Mismatched client secret, expected %s got %s', client.client_secret, clientSecret);
 		res.status(401).json({error: 'invalid_client'});
 		return;
 	}
 	
-	if (req.body.grant_type == 'authorization_code') {
-		
+	if (req.body.grant_type === 'authorization_code') {
+
 		var code = codes[req.body.code];
-		
+
 		if (code) {
 			delete codes[req.body.code]; // burn our code, it's been used
-			if (code.request.client_id == clientId) {
+			if (code.request.client_id === clientId) {
+				let access_token = randomstring.generate();
+				let refresh_token = randomstring.generate();
 
-				var access_token = randomstring.generate();
-				nosql.insert({ access_token: access_token, client_id: clientId });
-
-				/*
-				 * Issue a refresh token along side the access token and save it to the database
-				 */
+				nosql.insert({access_token: access_token, client_id: clientId});
+				nosql.insert({refresh_token: refresh_token, client_id: clientId});
 
 				console.log('Issuing access token %s', access_token);
 				console.log('with scope %s', code.scope);
 
-				var token_response = { access_token: access_token, token_type: 'Bearer' };
+				var token_response = {access_token: access_token, token_type: 'Bearer', refresh_token: refresh_token};
 
 				res.status(200).json(token_response);
 				console.log('Issued tokens for code %s', req.body.code);
-				
-				return;
+
 			} else {
 				console.log('Client mismatch, expected %s got %s', code.request.client_id, clientId);
 				res.status(400).json({error: 'invalid_grant'});
-				return;
 			}
-		
+
 		} else {
 			console.log('Unknown code, %s', req.body.code);
 			res.status(400).json({error: 'invalid_grant'});
-			return;
 		}
 
-	/*
-     * Respond to a refresh token request by issuing a new access token
-	 */
-		
+	} else if (req.body.grant_type === 'refresh_token') {
+		nosql.one().make(function (builder) {
+			builder.where('refresh_token', req.body.refresh_token);
+			builder.callback(function (err, token){
+				if (token) {
+					if (token.client_id !== clientId) {
+						nosql.remove().make(function (builder) {
+							builder.where({refresh_token: req.body.refresh_token});
+						})
+						console.log('Client mismatch, expected %s got %s', token.client_id, clientId);
+						res.status(400).json({error: 'invalid_grant'});
+					} else {
+						let access_token = randomstring.generate();
+						nosql.insert({access_token: access_token, client_id: clientId});
+
+						console.log("Issuing new access token %s for refresh token %s", access_token, token.refresh_token);
+						let token_response = {
+							access_token: access_token,
+							token_type: 'Bearer',
+							refresh_token: token.refresh_token
+						};
+						res.status(200).json(token_response);
+					}
+				} else {
+					console.log('Unknown refresh token %s', req.body.refresh_token);
+					res.status(400).json({error: 'invalid_grant'});
+				}
+			})
+		})
 	} else {
 		console.log('Unknown grant type %s', req.body.grant_type);
 		res.status(400).json({error: 'unsupported_grant_type'});

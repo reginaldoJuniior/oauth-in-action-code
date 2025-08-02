@@ -25,7 +25,7 @@ var getAccessToken = function(req, res, next) {
 	// check the auth header first
 	var auth = req.headers['authorization'];
 	var inToken = null;
-	if (auth && auth.toLowerCase().indexOf('bearer') == 0) {
+	if (auth && auth.toLowerCase().indexOf('bearer') === 0) {
 		inToken = auth.slice('bearer '.length);
 	} else if (req.body && req.body.access_token) {
 		// not in the header, check in the form body
@@ -40,12 +40,20 @@ var getAccessToken = function(req, res, next) {
 	  builder.callback(function(err, token) {
 	    if (token) {
 	      console.log("We found a matching token: %s", inToken);
+		  if (token.expiration_time) {
+			  let now = new Date();
+			  if (now > token.expiration_time) {
+			  	console.log('Token has expired.');
+			  	token = null;
+			  } else {
+			  	console.log('Token is valid until %s', token.expiration_time);
+			  }
+	      }
 	    } else {
 	      console.log('No matching token was found.');
-	    };
+	    }
 	    req.access_token = token;
 	    next();
-	    return;
 	  });
 	});
 };

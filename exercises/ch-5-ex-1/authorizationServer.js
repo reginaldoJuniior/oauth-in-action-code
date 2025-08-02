@@ -124,12 +124,14 @@ app.post("/token", function(req, res){
 
 				if (code.request.client_id === clientId) {
 					let access_token = randomstring.generate()
-					nosql.insert({access_token: access_token, client_id: clientId})
+					let expiration_time = Date.now() + 10 * 60 * 1000; // now plus 10 minutes
+					nosql.insert({access_token: access_token, client_id: clientId, expiration_time: expiration_time})
 
 					console.log("Including access token %s", access_token);
 					let token_response = {
 						access_token: access_token,
-						token_type: 'Bearer'
+						token_type: 'Bearer',
+						expiration_time: expiration_time
 					}
 					res.status(200).json(token_response);
 				} else {

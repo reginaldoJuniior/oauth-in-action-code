@@ -96,39 +96,58 @@ app.post('/approve', function(req, res) {
 	
 	if (req.body.approve) {
 		if (query.response_type == 'code') {
-			// user approved access
+            // user approved access
 
-			var rscope = getScopesFromForm(req.body);
-			var client = getClient(query.client_id);
-			var cscope = client.scope ? client.scope.split(' ') : undefined;
-			if (__.difference(rscope, cscope).length > 0) {
-				var urlParsed = buildUrl(query.redirect_uri, {
-					error: 'invalid_scope'
-				});
+            var rscope = getScopesFromForm(req.body);
+            var client = getClient(query.client_id);
+            var cscope = client.scope ? client.scope.split(' ') : undefined;
+            if (__.difference(rscope, cscope).length > 0) {
+                var urlParsed = buildUrl(query.redirect_uri, {
+                    error: 'invalid_scope'
+                });
+                res.redirect(urlParsed);
+                return;
+            }
+
+            var code = randomstring.generate(8);
+
+            // save the code and request for later
+
+            codes[code] = {request: query, scope: rscope};
+
+            var urlParsed = buildUrl(query.redirect_uri, {
+                code: code,
+                state: query.state
+            });
+            res.redirect(urlParsed);
+            return;
+
+        } if (query.response_type === 'token') {
+		    let rscope = getScopesFromForm(req.body);
+			let client = getClient(query.client_id);
+			let scope = client.scope ? client.scope.split(' ') : undefined;
+
+			if (__.difference(rscope, scope).length > 0) {
+				let urlParsed = buildUrl(query.redirect_uri, {}, qs.stringify(
+					{ error: 'invalid_scope' }
+				));
 				res.redirect(urlParsed);
-				return;
 			}
 
-			var code = randomstring.generate(8);
-			
-			// save the code and request for later
-			
-			codes[code] = { request: query, scope: rscope };
-		
-			var urlParsed = buildUrl(query.redirect_uri, {
-				code: code,
-				state: query.state
-			});
+			let access_token = randomstring.generate();
+			nosql.insert({ access_token: access_token, client_id: query.client_id, scope: rscope });
+
+			let token_response = {
+				access_token: access_token,
+				token_type: 'Bearer',
+				scope: rscope.join(' ')
+			}
+			if (query.state) {
+				token_response.state = query.state;
+			}
+
+			let urlParsed = buildUrl(query.redirect_uri, {}, qs.stringify(token_response));
 			res.redirect(urlParsed);
-			return;
-		
-		
-		/*
-		 * Implement response_type=token here
-	 	 */
-		
-		
-		
 		} else {
 			// we got a response type we don't understand
 			var urlParsed = buildUrl(query.redirect_uri, {

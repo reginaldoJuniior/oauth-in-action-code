@@ -49,9 +49,31 @@ app.get('/authorize', function(req, res){
 	access_token = null;
 	scope = null;
 	
-	/*
-	 * Implement the client credentials flow here
-	 */
+	let form_data = qs.stringify({
+		grant_type: 'client_credentials',
+		scope: client.scope
+	});
+
+	let headers = {
+		'Content-Type': 'application/x-www-form-urlencoded',
+		'Authorization': 'Basic ' + encodeClientCredentials(client.client_id, client.client_secret)
+	}
+
+	let tokRes = request('POST', authServer.tokenEndpoint, {
+		body: form_data,
+		headers: headers
+	});
+
+	if (tokRes.statusCode >= 200 && tokRes.statusCode < 300) {
+		let body = JSON.parse(tokRes.getBody());
+		access_token = body.access_token;
+		scope = body.scope;
+		console.log('Access token: %s', access_token);
+		res.render('index', {access_token: access_token, scope: scope});
+	} else {
+		console.log('Error fetching access token, status code: %s', tokRes.statusCode);
+		res.render('error', {error: 'Failed to fetch access token. Status code: ' + tokRes.statusCode});
+	}
 	
 });
 

@@ -54,11 +54,11 @@ app.get("/authorize", function(req, res){
 	if (!client) {
 		console.log('Unknown client %s', req.query.client_id);
 		res.render('error', {error: 'Unknown client'});
-		return;
+
 	} else if (!__.contains(client.redirect_uris, req.query.redirect_uri)) {
 		console.log('Mismatched redirect URI, expected %s got %s', client.redirect_uris, req.query.redirect_uri);
 		res.render('error', {error: 'Invalid redirect URI'});
-		return;
+
 	} else {
 		
 		var rscope = req.query.scope ? req.query.scope.split(' ') : undefined;
@@ -94,7 +94,7 @@ app.post('/approve', function(req, res) {
 	}
 	
 	if (req.body.approve) {
-		if (query.response_type == 'code') {
+		if (query.response_type === 'code') {
 			// user approved access
 
 			var rscope = getScopesFromForm(req.body);
@@ -169,24 +169,28 @@ app.post("/token", function(req, res){
 		return;
 	}
 	
-	if (client.client_secret != clientSecret) {
+	if (client.client_secret !== clientSecret) {
 		console.log('Mismatched client secret, expected %s got %s', client.client_secret, clientSecret);
 		res.status(401).json({error: 'invalid_client'});
 		return;
 	}
 	
-	if (req.body.grant_type == 'authorization_code') {
+	if (req.body.grant_type === 'authorization_code') {
 		
 		var code = codes[req.body.code];
 		
 		if (code) {
 			delete codes[req.body.code]; // burn our code, it's been used
 			
-			/*
-			 * Make sure any passed-in redirect URI matches the registered redirect URI
-			 */
+			if (code.request.redirect_uri) {
+				if (code.request.redirect_uri !== req.body.redirect_uri) {
+					console.log('Mismatched redirect URI, expected %s got %s', code.request.redirect_uri, req.body.redirect_uri);
+					res.status(400).json({error: 'invalid_grant'});
+					return;
+				}
+			}
 			
-			if (code.request.client_id == clientId) {
+			if (code.request.client_id === clientId) {
 
 				var access_token = randomstring.generate();
 				var refresh_token = randomstring.generate();
@@ -200,27 +204,24 @@ app.post("/token", function(req, res){
 
 				res.status(200).json(token_response);
 				console.log('Issued tokens for code %s', req.body.code);
-				
-				return;
+
 			} else {
 				console.log('Client mismatch, expected %s got %s', code.request.client_id, clientId);
 				res.status(400).json({error: 'invalid_grant'});
-				return;
 			}
 		
 
 		} else {
 			console.log('Unknown code, %s', req.body.code);
 			res.status(400).json({error: 'invalid_grant'});
-			return;
 		}
-	} else if (req.body.grant_type == 'refresh_token') {
+	} else if (req.body.grant_type === 'refresh_token') {
 	nosql.one().make(function(builder) {
 	  builder.where('refresh_token', req.body.refresh_token);
 	  builder.callback(function(err, token) {
 	    if (token) {
 				console.log("We found a matching refresh token: %s", req.body.refresh_token);
-				if (token.client_id != clientId) {
+				if (token.client_id !== clientId) {
 					nosql.remove().make(function(builder) { builder.where('refresh_token', req.body.refresh_token); });
 					res.status(400).json({error: 'invalid_grant'});
 					return;

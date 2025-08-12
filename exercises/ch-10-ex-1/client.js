@@ -48,13 +48,21 @@ app.get('/authorize', function(req, res){
 
 	access_token = null;
 
+	code_verifier = randomstring.generate(80);
+	var code_challenge = base64url.fromBase64(
+		crypto.createHash('sha256')
+		.update(code_verifier)
+		.digest('base64'));
+
 	state = randomstring.generate();
 	
 	var authorizeUrl = buildUrl(authServer.authorizationEndpoint, {
 		response_type: 'code',
 		client_id: client.client_id,
 		redirect_uri: client.redirect_uris[0],
-		state: state
+		state: state,
+		code_challenge: code_challenge,
+		code_verifier: code_verifier
 	});
 	
 	console.log("redirect", authorizeUrl);
@@ -69,7 +77,7 @@ app.get('/callback', function(req, res){
 		return;
 	}
 	
-	if (req.query.state != state) {
+	if (req.query.state !== state) {
 		console.log('State DOES NOT MATCH: expected %s got %s', state, req.query.state);
 		res.render('error', {error: 'State value did not match'});
 		return;
@@ -80,7 +88,8 @@ app.get('/callback', function(req, res){
 	var form_data = qs.stringify({
 		grant_type: 'authorization_code',
 		code: code,
-		redirect_uri: client.redirect_uris[0]
+		redirect_uri: client.redirect_uris[0],
+		code_verifier: code_verifier
 	});
 	var headers = {
 		'Content-Type': 'application/x-www-form-urlencoded',

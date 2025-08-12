@@ -171,23 +171,43 @@ app.post("/token", function(req, res){
 		return;
 	}
 	
-	if (client.client_secret != clientSecret) {
+	if (client.client_secret !== clientSecret) {
 		console.log('Mismatched client secret, expected %s got %s', client.client_secret, clientSecret);
 		res.status(401).json({error: 'invalid_client'});
 		return;
 	}
 	
-	if (req.body.grant_type == 'authorization_code') {
+	if (req.body.grant_type === 'authorization_code') {
 		
 		var code = codes[req.body.code];
 		
 		if (code) {
 			delete codes[req.body.code]; // burn our code, it's been used
-			if (code.request.client_id == clientId) {
+			if (code.request.client_id === clientId) {
 
-				/*
-				 * Add code to check PKCE values here
-				 */
+				if (code.request.client_id === clientId) {
+					let code_challenge = null;
+					if (code.request.code_challenge) {
+						if (code.request.code_challange.method === 'plain') {
+							code_challenge = req.body.code_verifier;
+						} else if (code.request.code_challenge.method === 'S256') {
+							code_challenge = base64url.fromBase64(
+								crypto.createHash('sha256')
+								.update(req.body.code_verifier)
+								.digest('base64'));
+						} else {
+							console.log('Unknown code challenge method %s', code.request.code_challenge.method);
+							res.status(400).json({error: 'invalid_request'});
+							return;
+						}
+					}
+
+					if (code_challenge !== code.request.code_challenge) {
+						console.log('Code challenge mismatch, expected %s got %s', code.request.code_challenge, code_challenge);
+						res.status(400).json({error: 'invalid_request'});
+						return;
+					}
+				}
 
 				var access_token = randomstring.generate();
 				var refresh_token = randomstring.generate();
@@ -201,27 +221,24 @@ app.post("/token", function(req, res){
 
 				res.status(200).json(token_response);
 				console.log('Issued tokens for code %s', req.body.code);
-				
-				return;
+
 			} else {
 				console.log('Client mismatch, expected %s got %s', code.request.client_id, clientId);
 				res.status(400).json({error: 'invalid_grant'});
-				return;
 			}
 		
 
 		} else {
 			console.log('Unknown code, %s', req.body.code);
 			res.status(400).json({error: 'invalid_grant'});
-			return;
 		}
-	} else if (req.body.grant_type == 'refresh_token') {
+	} else if (req.body.grant_type === 'refresh_token') {
 	nosql.one().make(function(builder) {
 	  builder.where('refresh_token', req.body.refresh_token);
 	  builder.callback(function(err, token) {
 	    if (token) {
 				console.log("We found a matching refresh token: %s", req.body.refresh_token);
-				if (token.client_id != clientId) {
+				if (token.client_id !== clientId) {
 					nosql.remove().make(function(builder) { builder.where('refresh_token', req.body.refresh_token); });
 					res.status(400).json({error: 'invalid_grant'});
 					return;

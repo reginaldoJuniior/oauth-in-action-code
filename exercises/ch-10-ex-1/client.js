@@ -62,7 +62,7 @@ app.get('/authorize', function(req, res){
 		redirect_uri: client.redirect_uris[0],
 		state: state,
 		code_challenge: code_challenge,
-		code_verifier: code_verifier
+		code_challenge_method: 'S256'
 	});
 	
 	console.log("redirect", authorizeUrl);

@@ -217,12 +217,22 @@ app.post("/token", function(req, res){
 		if (code) {
 			delete codes[req.body.code]; // burn our code, it's been used
 			if (code.request.client_id == clientId) {
-				
-				/*
-				 * Generate a JWT-formatted token instead of this random token
-				 */
 
-				var access_token = randomstring.generate();
+				var header = { 'typ': 'JWT', 'alg': 'none' };
+				var payload = {
+					iss: 'http://localhost:9001/', // issuer
+					sub: code.user ? code.user.sub : undefined, // subject about the client
+					aud: 'http://localhost:9002/', // audience, the resource server
+					iat: Math.floor(Date.now() / 1000), // issued at, in seconds
+					exp: Math.floor(Date.now() / 1000) + (5 * 60), // expiration, in seconds, now + 5 minutes
+					jti: randomstring.generate(8), // JWT ID, a unique identifier for this token
+				}
+
+				var access_token =
+					base64url.encode(JSON.stringify(header))
+					+ '.'
+					+ base64url.encode(JSON.stringify(payload))
+					+ '.';
 
 				nosql.insert({ access_token: access_token, client_id: clientId, scope: code.scope, user: code.user });
 

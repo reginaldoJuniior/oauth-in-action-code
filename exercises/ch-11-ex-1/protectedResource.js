@@ -53,7 +53,7 @@ var getAccessToken = function(req, res, next) {
 	// check the auth header first
 	var auth = req.headers['authorization'];
 	var inToken = null;
-	if (auth && auth.toLowerCase().indexOf('bearer') == 0) {
+	if (auth && auth.toLowerCase().indexOf('bearer') === 0) {
 		inToken = auth.slice('bearer '.length);
 	} else if (req.body && req.body.access_token) {
 		// not in the header, check in the form body
@@ -64,9 +64,21 @@ var getAccessToken = function(req, res, next) {
 	
 	console.log('Incoming token: %s', inToken);
 	
-	/*
-	 * Parse and validate the JWT here
-	 */
+	var tokenParts = inToken.split('.');
+	var payload = JSON.parse(base64url.decode(tokenParts[1]));
+
+	if (payload.iss === 'http://localhost:9001/') {
+		if ((Array.isArray(payload.aud) && __.contains(payload.aud, 'http://localhost:9002/')) ||
+		payload.aud === 'http://localhost:9002/') {
+			var now = Math.floor(Date.now() / 1000);
+			if (payload.iat <= now) {
+				if (payload.exp >= now) {
+					console.log('payload', payload);
+					req.access_token = payload;
+				}
+			}
+		}
+	}
 				
 	next();
 	return;

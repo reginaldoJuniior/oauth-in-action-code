@@ -300,6 +300,17 @@ app.post("/token", function(req, res){
 	}
 });
 
+app.get('/.well-known/jwks.json', function(req, res) {
+	// return the public key in JWK format
+	var jwk = {
+		kty: rsaKey.kty,
+		n: rsaKey.n,
+		e: rsaKey.e,
+		kid: rsaKey.kid
+	};
+	res.json({keys: [jwk]});
+})
+
 var buildUrl = function(base, options, hash) {
 	var newUrl = url.parse(base, true);
 	delete newUrl.search;

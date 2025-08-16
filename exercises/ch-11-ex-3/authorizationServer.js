@@ -239,7 +239,9 @@ app.post("/token", function(req, res){
 					aud: 'http://localhost:9002/',
 					iat: Math.floor(Date.now() / 1000),
 					exp: Math.floor(Date.now() / 1000) + (5 * 60),
-					jti: randomstring.generate(8)
+					jti: randomstring.generate(8),
+					scope: code.scope.join(' '),
+					clientId: clientId
 				};
 
 				var privateKey = jose.KEYUTIL.getKey(rsaKey);

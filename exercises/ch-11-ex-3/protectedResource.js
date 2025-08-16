@@ -66,10 +66,10 @@ var getAccessToken = function(req, res, next) {
 
 		console.log('Signature OK');
 	
-		if (payload.iss == 'http://localhost:9001/') {
+		if (payload.iss === 'http://localhost:9001/') {
 			console.log('issuer OK');
 			if ((Array.isArray(payload.aud) && __.contains(payload.aud, 'http://localhost:9002/')) ||
-				payload.aud == 'http://localhost:9002/') {
+				payload.aud === 'http://localhost:9002/') {
 				console.log('Audience OK');
 
 				var now = Math.floor(Date.now() / 1000);
@@ -108,6 +108,9 @@ var savedWords = [];
 app.options('/resource', cors());
 
 app.post("/resource", cors(), getAccessToken, function(req, res){
+
+	console.log('Scopes from token: %s', req.access_token.scope);
+	console.log('Client ID from token: %s', req.access_token.clientId);
 
 	if (req.access_token) {
 		res.json(resource);

@@ -40,7 +40,7 @@ var codes = {};
 var requests = {};
 
 var getClient = function(clientId) {
-	return __.find(clients, function(client) { return client.client_id == clientId; });
+	return __.find(clients, function(client) { return client.client_id === clientId; });
 };
 
 app.get('/', function(req, res) {
@@ -245,10 +245,48 @@ app.post("/token", function(req, res){
 
 app.post('/revoke', function(req, res) {
 
-	/*
-	 * Implement the token revocation endpoint
-	 */
-	
+	let auth = req.headers['authorization'];
+	let clientId, clientSecret;
+	if (auth) {
+		let clientCredentials = decodeClientCredentials(auth);
+		clientId = clientCredentials.id;
+		clientSecret = clientCredentials.secret;
+	}
+
+	if (req.body.client_id) {
+		if (clientId) {
+			// if we've already seen the client's credentials in the authorization header, this is an error
+			console.log('Client attempted to authenticate with multiple methods');
+			res.status(401).json({error: 'invalid_client'});
+			return;
+		}
+
+		clientId = req.body.client_id;
+		clientSecret = req.body.client_secret;
+	}
+
+	let client = getClient(clientId);
+	if (!client) {
+		console.log('Unknown client %s', clientId);
+		res.status(401).json({error: 'invalid_client'});
+		return;
+	}
+
+	if (client.client_secret !== clientSecret) {
+		res.status(401).json({error: 'invalid_client'});
+		return;
+	}
+
+	let inToken = req.body.token;
+	nosql.remove().make(function(builder) {
+		builder.and();
+		builder.where('access_token', inToken);
+		builder.where('client_id', clientId);
+		builder.callback(function(err, count) {
+			console.log("Removed %s tokens", count);
+			res.status(204).end();
+		})
+	})
 });
 
 var buildUrl = function(base, options, hash) {

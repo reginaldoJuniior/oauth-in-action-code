@@ -283,9 +283,47 @@ app.post("/token", function(req, res){
 
 app.post('/introspect', function(req, res) {
 
-	/*
-	 * Implement the introspection endpoint
-	 */
+	let auth = req.headers['authorization'];
+	let resourceCredentials = decodeClientCredentials(auth);
+	let resourceId = resourceCredentials.id;
+	let resourceSecret = resourceCredentials.secret;
+
+	let resource = getProtectedResource(resourceId);
+	if (!resource) {
+		console.log('Unknown resource %s', resourceId);
+		res.status(401).json({error: 'invalid_client'});
+	}
+
+	if (resource.resource_secret !== resourceSecret) {
+		console.log('Mismatched resource secret, expected %s got %s', resource.resource_secret, resourceSecret);
+		res.status(401).json({error: 'invalid_client'});
+	}
+
+	let inToken = req.body.token;
+	console.log('Introspecting token %s', inToken);
+	nosql.one().make(function(builder) {
+		builder.where('access_token', inToken);
+		builder.callback(function(err, token) {
+			if (token) {
+				let introspectionResponse = {
+					active: true,
+					iss: 'http://localhost:9001',
+					aud: 'http://localhost:9002',
+					sub: token.user ? token.user.sub : undefined,
+					username: token.user ? token.user.preferred_username : undefined,
+					scope: token.scope ? token.scope.join(' ') : undefined,
+					client_id: token.client_id,
+				}
+				res.status(200).json(introspectionResponse);
+			} else {
+				let introspectionResponse = {
+					// we don't say the reason why the token is not active, just that it is not
+					active: false
+				}
+				res.status(200).json(introspectionResponse);
+			}
+		});
+	})
 
 });
 

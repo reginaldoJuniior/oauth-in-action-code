@@ -49,13 +49,34 @@ var getAccessToken = function(req, res, next) {
 	
 	console.log('Incoming token: %s', inToken);
 
-	/*
-	 * Send the incoming token to the introspection endpoint and parse the results
-	 */
+	let form_data = qs.stringify({
+		'token': inToken,
+	});
 
+	let headers = {
+		'Content-Type': 'application/x-www-form-urlencoded',
+		'Authorization': 'Basic ' + encodeClientCredentials(protectedResources.resource_id, protectedResources.resource_secret)
+	}
+
+	let tokRes = request('POST', authServer.introspectionEndpoint, {
+		body: form_data,
+		headers: headers
+	});
+
+	if (tokRes.statusCode >= 200 && tokRes.statusCode < 300) {
+		let body = JSON.parse(tokRes.getBody());
+		console.log('Introspection response: %j', body);
+		let active = body.active;
+		if (active) {
+			req.access_token = inToken;
+			console.log('Access token is valid: %s', req.access_token);
+		} else {
+			console.log('Access token is invalid');
+			req.access_token = null;
+		}
+	}
 
 	next();
-	return;
 };
 
 var requireAccessToken = function(req, res, next) {

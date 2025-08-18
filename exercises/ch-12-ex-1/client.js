@@ -48,9 +48,13 @@ app.get('/', function (req, res) {
 
 app.get('/authorize', function(req, res){
 	
-	/*
-	 * If the client hasn't been registered yet, call the registerClient function
-	 */
+	if (!client.client_id) {
+		registerClient();
+		if (!client.client_id) {
+			res.render('error', {error: 'Unable to register client with authorization server.'});
+			return;
+		}
+	}
 
 	access_token = null;
 	refresh_token = null;
@@ -78,7 +82,7 @@ app.get("/callback", function(req, res){
 	}
 	
 	var resState = req.query.state;
-	if (resState == state) {
+	if (resState === state) {
 		console.log('State value matches: expected %s got %s', state, resState);
 	} else {
 		console.log('State DOES NOT MATCH: expected %s got %s', state, resState);
@@ -164,10 +168,37 @@ app.get('/fetch_resource', function(req, res) {
 });
 
 var registerClient = function() {
-	
-	/*
-	 * Call the registration endpoint with your desired client information and save the results
-	 */
+
+	let template = {
+		client_name: 'OAuth in Action Client',
+		client_uri: 'http://localhost:9000',
+		redirect_uris: ['http://localhost:9000/callback'],
+		grant_types: ["authorization_code"],
+		response_types: ["code"],
+		token_endpoint_auth_method: 'secret_basic'
+	}
+
+	let headers = {
+		'Content-Type': 'application/json',
+		'Accept': 'application/json'
+	}
+
+	let regRes = request('POST', authServer.registrationEndpoint, {
+		body: JSON.stringify(template),
+		headers: headers
+	});
+
+	if (regRes.statusCode === 201) {
+		let body = JSON.parse(regRes.getBody());
+		console.log('Got client registration response: %s', body);
+		if (body.client_id) {
+			client = body;
+		}
+	} else {
+		console.log('Error registering client: %s', regRes.statusCode);
+		console.log('Response body: %s', regRes.getBody());
+		client = {};
+	}
 	
 };
 

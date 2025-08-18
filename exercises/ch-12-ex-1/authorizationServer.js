@@ -54,11 +54,9 @@ app.get("/authorize", function(req, res){
 	if (!client) {
 		console.log('Unknown client %s', req.query.client_id);
 		res.render('error', {error: 'Unknown client'});
-		return;
 	} else if (!__.contains(client.redirect_uris, req.query.redirect_uri)) {
 		console.log('Mismatched redirect URI, expected %s got %s', client.redirect_uris, req.query.redirect_uri);
 		res.render('error', {error: 'Invalid redirect URI'});
-		return;
 	} else {
 		
 		var rscope = req.query.scope ? req.query.scope.split(' ') : undefined;
@@ -94,7 +92,7 @@ app.post('/approve', function(req, res) {
 	}
 	
 	if (req.body.approve) {
-		if (query.response_type == 'code') {
+		if (query.response_type === 'code') {
 			// user approved access
 
 			var rscope = getScopesFromForm(req.body);
@@ -168,14 +166,16 @@ app.post("/token", function(req, res){
 		res.status(401).json({error: 'invalid_client'});
 		return;
 	}
-	
-	if (client.client_secret != clientSecret) {
-		console.log('Mismatched client secret, expected %s got %s', client.client_secret, clientSecret);
-		res.status(401).json({error: 'invalid_client'});
-		return;
+
+	if (client.client_secret) {
+		if (client.client_secret !== clientSecret) {
+			console.log('Mismatched client secret, expected %s got %s', client.client_secret, clientSecret);
+			res.status(401).json({error: 'invalid_client'});
+			return;
+		}
 	}
 	
-	if (req.body.grant_type == 'authorization_code') {
+	if (req.body.grant_type === 'authorization_code') {
 		
 		var code = codes[req.body.code];
 		
@@ -239,11 +239,93 @@ app.post("/token", function(req, res){
 });
 
 app.post('/register', function (req, res){
+	let reg = {};
 
-	/*
-	 * Implement the registration endpoint
-	 */
+	if (!req.body.token_endpoint_auth_method) {
+		reg.token_endpoint_auth_method = 'client_secret_basic';
+	} else {
+		reg.token_endpoint_auth_method = req.body.token_endpoint_auth_method;
+	}
 
+	if (!__.contains(['secret_basic','secret_post', 'none'], reg.token_endpoint_auth_method)) {
+		console.log('Unsupported token endpoint auth method %s', reg.token_endpoint_auth_method);
+		res.status(400).json({error: 'invalid_client_metadata'});
+	}
+
+	if (!req.body.grant_type) {
+		if (!req.body.response_types) {
+			reg.grant_types = ['authorization_code'];
+			reg.response_types = ['code'];
+		} else {
+			reg.response_types = req.body.response_types;
+			if (__.contains(req.body.response_types, 'code')) {
+				reg.grant_types = ['authorization_code'];
+			} else {
+				reg.grant_types = [];
+			}
+		}
+	} else {
+		if (!req.body.response_types) {
+			reg.grant_types = req.body.grant_types;
+			if (__.contains(req.body.grant_types, 'authorization_code')) {
+				reg.response_types = ['code'];
+			} else {
+				reg.response_types = [];
+			}
+		} else {
+			reg.grant_types = req.body.grant_types;
+			reg.response_types = req.body.response_types;
+			if (__.contains(req.body.grant_types, 'authorization_code') &&
+				!__.contains(req.body.response_types, 'code')) {
+				reg.response_types.push('code');
+			}
+			if (!__.contains(req.body.grant_types, 'authorization_code') &&
+				__.contains(req.body.response_types, 'code')) {
+				reg.grant_types.push('authorization_code');
+			}
+		}
+	}
+
+	if (!__.isEmpty(__.without(reg.grant_types, 'authorization_code', 'refresh_token')) || !__.isEmpty(__.without(reg.response_types, 'code'))) {
+		console.log('Unsupported grant type %s', reg.grant_types);
+		res.status(400).json({error: 'invalid_client_metadata'});
+	}
+
+	if (!req.body.redirect_uris || !__.isArray(req.body.redirect_uris) || __.isEmpty(req.body.redirect_uris)) {
+		console.log('Missing or invalid redirect_uris');
+		res.status(400).json({error: 'invalid_redirect_uris'});
+	} else {
+		reg.redirect_uris = req.body.redirect_uris;
+		// check that the redirect URIs are in a blacklist of known URIs
+	}
+
+	if (typeof(req.body.client_name) == 'string') {
+		reg.client_name = req.body.client_name;
+	}
+
+	if (typeof(req.body.client_uri) == 'string') {
+		reg.client_uri = req.body.client_uri;
+	}
+
+	if (typeof(req.body.logo_uri) == 'string') {
+		reg.logo_uri = req.body.logo_uri;
+	}
+
+	if (typeof(req.body.scope) == 'string') {
+		reg.scope = req.body.scope;
+	}
+
+	reg.client_id = randomstring.generate();
+	if (__.contains(['client_secret_basic', 'client_secret_post'], reg.token_endpoint_auth_method)) {
+		reg.client_secret = randomstring.generate();
+	}
+
+	reg.client_id_created_at = Math.floor(Date.now() / 1000);
+	reg.client_secret_expires_at = 0; // no expiration for the client secret
+
+	clients.push(reg)
+
+	res.status(201).json(reg);
 });
 
 var buildUrl = function(base, options, hash) {

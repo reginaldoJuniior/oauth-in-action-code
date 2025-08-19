@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OAuth Authorization Server - Approve</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+    <style>
+    body {
+      padding-top: 60px;
+    }
+    .navbar-inverse {
+      background-color: #232;
+    }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-inverse navbar-fixed-top">
+      <div class="container">
+        <div class="navbar-header">
+          <a class="navbar-brand" href="/">OAuth in Action: <span class="label label-danger">OAuth Authorization Server</span></a>
+        </div>
+      </div>
+    </nav>
+    <div class="container">
+
+      <div class="jumbotron">
+        <h2>Approve this client?</h2>
+        {{with .Client}}
+        <p><b>ID:</b> <code>{{.ClientID}}</code></p>
+        {{end}}
+        <form class="form" action="/approve" method="POST">
+          <input type="hidden" name="reqid" value="{{.ReqID}}">
+          {{if .Scope}}
+          <p>The client is requesting access to the following:</p>
+          <ul>
+          {{range .Scope}}
+            <li><input type="checkbox" name="scope_{{.}}" id="scope_{{.}}" checked="checked"> <label for="scope_{{.}}">{{.}}</label></li>
+          {{end}}
+          </ul>
+          {{end}}
+          <input type="submit" class="btn btn-success" name="approve" value="Approve">
+          <input type="submit" class="btn btn-danger" name="deny" value="Deny">
+        </form>
+      </div>
+    </div>
+</body>
+</html>

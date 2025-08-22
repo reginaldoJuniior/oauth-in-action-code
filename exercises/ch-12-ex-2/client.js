@@ -189,7 +189,7 @@ var registerClient = function() {
 			headers: headers
 	});
 	
-	if (regRes.statusCode == 201) {
+	if (regRes.statusCode === 201) {
 		var body = JSON.parse(regRes.getBody());
 		console.log("Got registered client", body);
 		if (body.client_id) {
@@ -200,25 +200,75 @@ var registerClient = function() {
 
 app.get('/read_client', function(req, res) {
 
-	/* 
-	 * Read the client's registration information from the management endpoint
-	 */
+	let headers = {
+		'Accept': 'application/json',
+		'Authorization': 'Bearer ' + client.registration_access_token
+	}
+
+	let regRes = request('GET', client.registration_client_uri, {
+		headers: headers
+	});
+
+	if (regRes.statusCode === 200) {
+		client = JSON.parse(regRes.getBody());
+		console.log("Got registered client", client);
+
+		res.render('data', {resource: client});
+	} else {
+		res.render('error', {error: 'Unable to read client registration, server response: ' + regRes.statusCode});
+	}
 	
 });
 
 app.post('/update_client', function(req, res) {
 
-	/*
-	 * Update the client's registration with input from the form
-	 */
+	let headers = {
+		'Accept': 'application/json',
+		'Content-Type': 'application/json',
+		'Authorization': 'Bearer ' + client.registration_access_token
+	}
 
+	let reg = __.clone(client);
+	delete reg['client_id_issued_at'];
+	delete reg['client_secret_expires_at'];
+	delete reg['registration_client_uri'];
+	delete reg['registration_access_token'];
+
+	reg.client_name = req.body.client_name;
+	req.client.registration_client_uri = req.body.registration_client_uri;
+
+	console.log("Sending updated client: ", reg);
+
+	let regRes = request('PUT', client.registration_client_uri, {
+		body: JSON.stringify(reg),
+		headers: headers
+	});
+
+	if (regRes.statusCode === 200) {
+		client = JSON.parse(regRes.getBody());
+		res.render('index', {access_token: access_token, refresh_token: refresh_token, scope: scope, client: client});
+	} else {
+		res.render('error', {error: 'Unable to update client ' + regRes.statusCode});
+	}
 });
 
 app.get('/unregister_client', function(req, res) {
 
-	/*
-	 * Delete the client's registration from the server
-	 */
+	let headers = {
+		'Authorization': 'Bearer ' + client.registration_access_token
+	}
+
+	let regRes = request('DELETE', client.registration_client_uri, {
+		headers: headers
+	});
+
+	client = {};
+
+	if (regRes.statusCode === 204) {
+		res.render('index', {access_token: access_token, refresh_token: refresh_token, scope: scope, client: client});
+	} else {
+		res.render('error', {error: 'Unable to unregister client, server response: ' + regRes.statusCode});
+	}
 	
 });
 

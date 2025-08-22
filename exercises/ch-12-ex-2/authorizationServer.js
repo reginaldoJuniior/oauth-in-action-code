@@ -32,6 +32,15 @@ var clients = [
 		"client_secret": "oauth-client-secret-1",
 		"redirect_uris": ["http://localhost:9000/callback"],
 		"scope": "foo bar"
+	},
+	{
+		"client_name": "OAuth client from Postman",
+		"client_uri": "http://localhost:9999/",
+		"redirect_uris": ["https://oauth.pstmn.io/v1/callback"],
+		"grant_types": "authorization_code",
+		"response_types": "code",
+		"token_endpoint_auth_method": "client_secret_basic",
+		"scope": "foo bar"
 	}
 ];
 
@@ -341,45 +350,42 @@ app.post('/register', function (req, res){
 });
 
 var authorizeConfigurationEndpointRequest = function (req, res, next) {
-	var clientId = req.params.clientId;
-	var client = getClient(clientId);
+	let clientId = req.params.clientId;
+	let client = getClient(clientId);
 	if (!client) {
 		res.status(404).end();
 		return;
 	}
 
 	var auth = req.headers['authorization'];
-	if (auth && auth.toLowerCase().indexOf('bearer') == 0) {
-		var regToken = auth.slice('bearer '.length);
+	if (auth && auth.toLowerCase().indexOf('bearer') === 0) {
+		let regToken = auth.slice('bearer '.length);
 
-		if (regToken == client.registration_access_token) {
+		if (regToken === client.registration_access_token) {
 			req.client = client;
 			next();
-			return;
 		} else {
 			res.status(403).end();
-			return;
 		}
 		
 	} else {
 		res.status(401).end();
-		return;
 	}
 
 };
 
 app.get('/register/:clientId', authorizeConfigurationEndpointRequest, function(req, res) {
-	res.status(200).json(client);
+	res.status(200).json(req.client);
 });
 
 app.put('/register/:clientId', authorizeConfigurationEndpointRequest, function(req, res) {
 
-	if (req.body.client_id != client.client_id) {
+	if (req.body.client_id !== req.client.client_id) {
 		res.status(400).json({error: 'invalid_client_metadata'});
 		return;
 	}
 	
-	if (req.body.client_secret && req.body.client_secret != client.client_secret) {
+	if (req.body.client_secret && req.body.client_secret !== req.client.client_secret) {
 		res.status(400).json({error: 'invalid_client_metadata'});
 	}
 
@@ -388,31 +394,24 @@ app.put('/register/:clientId', authorizeConfigurationEndpointRequest, function(r
 		return;
 	}
 
-	__.each(client, function(value, key, list) {
-		client[key] = reg[key];
-	});
 	__.each(reg, function(value, key, list) {
-		client[key] = reg[key];
-	});
+		req.client[key] = reg[key];
+	});;
 
-	res.status(200).json(client);
-	
+	res.status(200).json(req.client);
 });
 
 app.delete('/register/:clientId', authorizeConfigurationEndpointRequest, function(req, res) {
-	clients = __.reject(clients, __.matches({client_id: client.client_id}));
+	clients = __.reject(clients, __.matches({client_id: req.client.client_id}));
 
-  nosql.remove().make(function(builder) {
-    builder.where('client_id', clientId);
-    builder.callback(function(err, count) {
-      console.log("Removed %s tokens", count);
-    });
-  });
-	
+	nosql.remove().make(function(builder) {
+	builder.where('client_id', req.client.clientId);
+		builder.callback(function(err, count) {
+		  console.log("Removed %s tokens", count);
+		});
+	});
+
 	res.status(204).end();
-	return;
-
-	
 });
 
 var buildUrl = function(base, options, hash) {

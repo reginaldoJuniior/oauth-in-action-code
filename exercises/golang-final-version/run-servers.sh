@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Set default ports if not provided
+CLIENT_PORT=${CLIENT_PORT:-9100}
+AUTH_PORT=${AUTH_PORT:-9101}
+RESOURCE_PORT=${RESOURCE_PORT:-9102}
+
+# Run all three servers in background
+CLIENT_PORT=$CLIENT_PORT go run client/client.go &
+AUTH_PORT=$AUTH_PORT go run authserver/authorizationServer.go &
+RESOURCE_PORT=$RESOURCE_PORT go run protected/protectedResource.go &
+
+# Wait for all to finish (Ctrl+C to stop)
+wait
+

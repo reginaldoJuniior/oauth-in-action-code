@@ -33,7 +33,7 @@ var getAccessToken = function(req, res, next) {
 	// check the auth header first
 	var auth = req.headers['authorization'];
 	var inToken = null;
-	if (auth && auth.toLowerCase().indexOf('bearer') == 0) {
+	if (auth && auth.toLowerCase().indexOf('bearer') === 0) {
 		inToken = auth.slice('bearer '.length);
 	} else if (req.body && req.body.access_token) {
 		// not in the header, check in the form body
@@ -53,7 +53,6 @@ var getAccessToken = function(req, res, next) {
 	    };
 	    req.access_token = token;
 	    next();
-	    return;
 	  });
 	});
 	
@@ -81,13 +80,15 @@ app.post("/resource", cors(), getAccessToken, function(req, res){
 
 var userInfoEndpoint = function(req, res) {
 	
-	if (!__.contains(req.access_token, 'openid')) {
+	if (!__.contains(req.access_token.scope, 'openid')) {
 		res.status(403).end();
+		return;
 	}
 
 	let user = req.access_token.user;
 	if (!user) {
 		res.status(404).end();
+		return;
 	}
 
 	let out = {};

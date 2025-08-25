@@ -87,7 +87,7 @@ app.get("/callback", function(req, res){
 	}
 	
 	var resState = req.query.state;
-	if (resState == state) {
+	if (resState === state) {
 		console.log('State value matches: expected %s got %s', state, resState);
 	} else {
 		console.log('State DOES NOT MATCH: expected %s got %s', state, resState);
@@ -129,16 +129,44 @@ app.get("/callback", function(req, res){
 		scope = body.scope;
 		console.log('Got scope: %s', scope);
 
-		/*
-		 * Parse and validate the ID token
-		 */
-		
+		if (body.id_token) {
+			userInfo = null;
+			id_token = body.id_token;
+
+			// TODO: get the resa key from the server's JWKS endpoint
+			let pubKey = jose.KEYUTIL.getKey(rsaKey);
+			let tokenParts = id_token.split('.');
+			let payload = JSON.parse(base64url.decode(tokenParts[1]));
+
+			if (jose.jws.JWS.verify(body.id_token, pubKey, [rsaKey.alg])) {
+				console.log('Signature validated.');
+
+				if (payload.iss === 'http://localhost:9001/') {
+					if ((Array.isArray(payload.aud) && __.contains(payload.aud, client.client_id)) ||
+						payload.aud === client.client_id) {
+						console.log("Audience is valid");
+						let now = Math.floor(Date.now() / 1000);
+						if (payload.iat <= now) {
+							if (payload.exp > now) {
+								console.log('ID Token is valid');
+
+								// save the ID token
+								id_token = payload;
+								userInfo = payload.userInfo;
+							}
+						}
+					}
+				}
+			}
+
+			res.render('userinfo', {userInfo: userInfo, id_token: id_token});
+			return;
+		}
+
 		res.render('index', {access_token: access_token, refresh_token: refresh_token, scope: scope});
-		return;
 
 	} else {
 		res.render('error', {error: 'Unable to fetch access token, server response: ' + tokRes.statusCode})
-		return;
 	}
 });
 

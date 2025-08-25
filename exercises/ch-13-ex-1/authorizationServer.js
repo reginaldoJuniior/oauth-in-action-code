@@ -55,7 +55,7 @@ var userInfo = {
 		"email": "alice.wonderland@example.com",
 		"email_verified": true
 	},
-	
+
 	"bob": {
 		"sub": "1ZT5-OE63-57383B",
 		"preferred_username": "bob",
@@ -63,7 +63,7 @@ var userInfo = {
 		"email": "bob.loblob@example.net",
 		"email_verified": false
 	}
-		
+
 };
 
 var getUser = function(username) {
@@ -93,11 +93,9 @@ app.get("/authorize", function(req, res){
 	if (!client) {
 		console.log('Unknown client %s', req.query.client_id);
 		res.render('error', {error: 'Unknown client'});
-		return;
 	} else if (!__.contains(client.redirect_uris, req.query.redirect_uri)) {
 		console.log('Mismatched redirect URI, expected %s got %s', client.redirect_uris, req.query.redirect_uri);
 		res.render('error', {error: 'Invalid redirect URI'});
-		return;
 	} else {
 		
 		var rscope = req.query.scope ? req.query.scope.split(' ') : undefined;
@@ -116,7 +114,6 @@ app.get("/authorize", function(req, res){
 		requests[reqid] = req.query;
 		
 		res.render('approve', {client: client, reqid: reqid, scope: rscope});
-		return;
 	}
 
 });
@@ -134,7 +131,7 @@ app.post('/approve', function(req, res) {
 	}
 	
 	if (req.body.approve) {
-		if (query.response_type == 'code') {
+		if (query.response_type === 'code') {
 			// user approved access
 			var code = randomstring.generate(8);
 			
@@ -161,14 +158,12 @@ app.post('/approve', function(req, res) {
 				state: query.state
 			});
 			res.redirect(urlParsed);
-			return;
 		} else {
 			// we got a response type we don't understand
 			var urlParsed = buildUrl(query.redirect_uri, {
 				error: 'unsupported_response_type'
 			});
 			res.redirect(urlParsed);
-			return;
 		}
 	} else {
 		// user denied access
@@ -211,19 +206,19 @@ app.post("/token", function(req, res){
 		return;
 	}
 	
-	if (client.client_secret != clientSecret) {
+	if (client.client_secret !== clientSecret) {
 		console.log('Mismatched client secret, expected %s got %s', client.client_secret, clientSecret);
 		res.status(401).json({error: 'invalid_client'});
 		return;
 	}
 	
-	if (req.body.grant_type == 'authorization_code') {
+	if (req.body.grant_type === 'authorization_code') {
 		
 		var code = codes[req.body.code];
 		
 		if (code) {
 			delete codes[req.body.code]; // burn our code, it's been used
-			if (code.request.client_id == clientId) {
+			if (code.request.client_id === clientId) {
 
 				var access_token = randomstring.generate();
 				nosql.insert({ access_token: access_token, client_id: clientId, scope: code.scope, user: code.user });
@@ -238,23 +233,43 @@ app.post("/token", function(req, res){
 
 				var token_response = { access_token: access_token, token_type: 'Bearer',  scope: cscope };
 
-				/*
-				 * Generate an ID token, if necessary
-				 */
+				if (__.contains(code.scope, 'openid') && code.user) {
+					let header = {
+						'typ': 'JWT',
+						'alg': rsaKey.alg,
+						'kid': rsaKey.kid,
+					};
+
+					let iPayload = {
+						iss: 'http://localhost:9001/',
+						sub: code.user.sub,
+						aud: client.client_id,
+						iat: Math.floor(Date.now() / 1000), // issued at time
+						exp: Math.floor(Date.now() / 1000) + (5 * 60) // expires after 5 minutes
+					}
+
+					if (code.request.nonce) {
+						iPayload.nonce = code.request.nonce;
+					}
+
+					// sign the body with our private key
+					let privateKey = jose.KEYUTIL.getKey(rsaKey);
+					token_response.id_token = jose.jws.JWS.sign(
+						header.alg,
+						JSON.stringify(header),
+						JSON.stringify(iPayload),
+						privateKey);
+				}
 
 				res.status(200).json(token_response);
 				console.log('Issued tokens for code %s', req.body.code);
-				
-				return;
 			} else {
 				console.log('Client mismatch, expected %s got %s', code.request.client_id, clientId);
 				res.status(400).json({error: 'invalid_grant'});
-				return;
 			}
 		} else {
 			console.log('Unknown code, %s', req.body.code);
 			res.status(400).json({error: 'invalid_grant'});
-			return;
 		}
 	} else {
 		console.log('Unknown grant type %s', req.body.grant_type);

@@ -183,23 +183,43 @@ app.post("/token", function(req, res){
 		return;
 	}
 	
-	if (client.client_secret != clientSecret) {
+	if (client.client_secret !== clientSecret) {
 		console.log('Mismatched client secret, expected %s got %s', client.client_secret, clientSecret);
 		res.status(401).json({error: 'invalid_client'});
 		return;
 	}
 	
-	if (req.body.grant_type == 'authorization_code') {
+	if (req.body.grant_type === 'authorization_code') {
 		
 		var code = codes[req.body.code];
 		
 		if (code) {
 			delete codes[req.body.code]; // burn our code, it's been used
-			if (code.request.client_id == clientId) {
+			if (code.request.client_id === clientId) {
 
-				/*
-				 * Generate an access token and associated key, store them, and return them
-				 */
+				if (code.authorizationEndpointRequest.client_id === clientId) {
+					keystore.generate('RSA', 2048).then(
+						function (key) {
+							let access_token = randomstring.generate();
+							let access_token_key = key.toJSON(true);
+							let access_token_public_key = key.toJSON();
+
+							let token_response = {
+								access_token: access_token,
+								access_token_key: access_token_key,
+								token_type: 'PoP',
+								refresh_token: req.body.refresh_token,
+								scope: code.scope,
+								alg: 'RS256'
+							}
+
+							nosql.insert({ access_token: access_token, access_token_key: access_token_public_key, client_id: clientId, scope: code.scope});
+
+							res.status(200).json(token_response);
+							console.log('Issued tokens for code %s', req.body.code);
+						}
+					)
+				}
 
 			} else {
 				console.log('Client mismatch, expected %s got %s', code.request.client_id, clientId);
@@ -230,7 +250,7 @@ app.post('/introspect', function(req, res) {
 		return;
 	}
 	
-	if (resource.resource_secret != resourceSecret) {
+	if (resource.resource_secret !== resourceSecret) {
 		console.log('Mismatched secret, expected %s got %s', resource.resource_secret, resourceSecret);
 		res.status(401).end();
 		return;
@@ -254,9 +274,7 @@ app.post('/introspect', function(req, res) {
   				client_id: token.client_id
   			};
 			
-  			/*
-  			 * Add in the key and algorithm associated with the token to the introspection response
-  			 */
+  			introspectionResponse.access_token_key = token.access_token_key;
 						
   			res.status(200).json(introspectionResponse);
   			return;

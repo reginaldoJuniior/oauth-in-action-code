@@ -54,7 +54,10 @@ var getAccessToken = function(req, res, next) {
 	let tokenParts = inToken.split('.');
 	let header = JSON.parse(base64url.decode(tokenParts[0]));
 	let payload = JSON.parse(base64url.decode(tokenParts[1]));
+	console.log('Payload', payload);
+
 	let at = payload.at;
+	console.log('Incmoing access token: %s', at);
 
 	let form_data = qs.stringify({
 		token: at
@@ -83,7 +86,7 @@ var getAccessToken = function(req, res, next) {
 				console.log('Signature is valid');
 
 				if (!payload.m || payload.m === req.method) {
-					if (!payload.u || payload.u === 'localhost:9002') {
+					if (!payload.u || payload.u === 'http://localhost:9002') {
 						if (!payload.p || payload.p === req.path) {
 							console.log('All components matched');
 							req.access_token = {

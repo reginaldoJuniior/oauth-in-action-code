@@ -13,6 +13,6 @@
 	"base64url": "^3.0.1",
 	"cors": "^2.7.1",
 	"jsrsasign": "^8.0.20",
-	"node-jose": "^0.7.0"
+	"node-jose": "^2.2.0"
   }
 }

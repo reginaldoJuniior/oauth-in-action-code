@@ -196,30 +196,27 @@ app.post("/token", function(req, res){
 		if (code) {
 			delete codes[req.body.code]; // burn our code, it's been used
 			if (code.request.client_id === clientId) {
+				keystore.generate('RSA', 2048).then(
+					function (key) {
+						let access_token = randomstring.generate();
+						let access_token_key = key.toJSON(true);
+						let access_token_public_key = key.toJSON();
 
-				if (code.authorizationEndpointRequest.client_id === clientId) {
-					keystore.generate('RSA', 2048).then(
-						function (key) {
-							let access_token = randomstring.generate();
-							let access_token_key = key.toJSON(true);
-							let access_token_public_key = key.toJSON();
-
-							let token_response = {
-								access_token: access_token,
-								access_token_key: access_token_key,
-								token_type: 'PoP',
-								refresh_token: req.body.refresh_token,
-								scope: code.scope,
-								alg: 'RS256'
-							}
-
-							nosql.insert({ access_token: access_token, access_token_key: access_token_public_key, client_id: clientId, scope: code.scope});
-
-							res.status(200).json(token_response);
-							console.log('Issued tokens for code %s', req.body.code);
+						let token_response = {
+							access_token: access_token,
+							access_token_key: access_token_key,
+							token_type: 'PoP',
+							refresh_token: req.body.refresh_token,
+							scope: code.scope,
+							alg: 'RS256'
 						}
-					)
-				}
+
+						nosql.insert({ access_token: access_token, access_token_key: access_token_public_key, client_id: clientId, scope: code.scope});
+
+						res.status(200).json(token_response);
+						console.log('Issued tokens for code %s', req.body.code);
+					}
+				)
 
 			} else {
 				console.log('Client mismatch, expected %s got %s', code.request.client_id, clientId);
